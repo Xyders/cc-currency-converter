@@ -72,11 +72,15 @@ jobs:
       - name: Deploy to Cloudflare Workers
         if: matrix.deploy_condition
         run: |
+          echo "Deploy condition: ${{ matrix.deploy_condition }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
           set -x
           if [ "${{ matrix.use_custom_domain }}" = "true" ]; then
-            npx wrangler deploy --env ${{ matrix.env_name }} --name "${{ matrix.worker_name }}" --domain "${{ matrix.domain }}" --verbose
+            npx wrangler deploy --env ${{ matrix.env_name }} --name "${{ matrix.worker_name }}" --domain "${{ matrix.domain }}"
           else
-            npx wrangler deploy --env ${{ matrix.env_name }} --name "${{ matrix.worker_name }}" --routes "${{ matrix.route }}" --verbose
+            npx wrangler deploy --env ${{ matrix.env_name }} --name "${{ matrix.worker_name }}" --routes "${{ matrix.route }}"
           fi
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
