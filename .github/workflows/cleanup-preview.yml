@@ -1,0 +1,28 @@
+name: Cleanup Preview Deployment
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Delete preview environment
+        run: |
+          # Attempt to delete the preview worker by name, ignore errors if it doesn't exist
+          npx wrangler delete --name currency-converter-api-pr-${{ github.event.number }} --force || echo "Preview worker currency-converter-api-pr-${{ github.event.number }} not found or already deleted"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

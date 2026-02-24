@@ -5,3 +5,12 @@ compatibility_flags = ["nodejs_compat"]
 
 [dev]
 port = 8787
+
+[env.production]
+routes = [
+  { pattern = "currency-converter-api.poplar.academy", custom_domain = true }
+]
+
+[env.preview]
+# Routes are set dynamically via CLI flags per PR
+# Example: --routes "pr-123.currency-converter-api.poplar.academy/*"
