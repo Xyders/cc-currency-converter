@@ -1,9 +1,10 @@
 import { currencyService } from './services/currency.js';
 import { ConversionRequest, ConversionResponse, ErrorResponse, CurrencyInfo } from './types/index.js';
+import type { Service } from '@cloudflare/workers-types';
 
 export interface Env {
-  akamaiService?: {
-    handleWorkerRequest: (
+  akamaiService?: Service & {
+    handleWorkerRequest?: (
       requestTs: number,
       cf: object, // Could use IncomingRequestCfProperties from @cloudflare/workers-types
       method: string,
@@ -114,21 +115,50 @@ const callAkamaiService = async (
   responseBody: ReadableStream | null,
   ctx: ExecutionContext
 ): Promise<void> => {
-  if (akamaiService.handleWorkerRequest) {
-    return akamaiService.handleWorkerRequest(
-      requestTs,
-      cf,
-      method,
-      url,
-      headers,
-      requestBody,
-      responseTs,
-      responseHeaders,
-      status,
-      responseBody
-    );
+  if (akamaiService.handleWorkerRequest && typeof akamaiService.handleWorkerRequest === 'function') {
+    try {
+      return await akamaiService.handleWorkerRequest(
+        requestTs,
+        cf,
+        method,
+        url,
+        headers,
+        requestBody,
+        responseTs,
+        responseHeaders,
+        status,
+        responseBody
+      );
+    } catch (error) {
+      // If handleWorkerRequest fails with RPC error, log and ignore
+      console.error('Akamai service handleWorkerRequest failed:', error);
+      return;
+    }
   } else {
-    console.error("Service binding 'akamaiService' missing handleWorkerRequest method");
+    // fallback to standard Service fetch
+    const request = new Request('https://akamai-service.internal/handleWorkerRequest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify({
+        requestTs,
+        cf,
+        method,
+        url,
+        headers,
+        requestBody: requestBody ? 'stream' : null,
+        responseTs,
+        responseHeaders,
+        status,
+        responseBody: responseBody ? 'stream' : null,
+      }),
+    });
+    const response = await akamaiService.fetch(request);
+    if (!response.ok) {
+      console.error('Akamai service fetch failed:', response.status, response.statusText);
+    }
     return;
   }
 };

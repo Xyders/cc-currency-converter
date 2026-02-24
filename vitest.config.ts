@@ -6,11 +6,7 @@ export default defineWorkersProject({
       workers: {
         singleWorker: true,
         miniflare: {
-          serviceBindings: {
-            akamaiService: {
-              network: { address: "http://localhost:9999" },
-            },
-          },
+          serviceBindings: {},
         },
         wrangler: {
           configPath: "./wrangler.test.toml",
