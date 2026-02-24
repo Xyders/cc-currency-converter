@@ -1,0 +1,18 @@
+{
+  "name": "currency-converter-api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "csv-parse": "^6.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250221.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^4.0.0"
+  }
+}
