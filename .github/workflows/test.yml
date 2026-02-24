@@ -70,7 +70,7 @@ jobs:
       - name: Deploy to Cloudflare Workers
         if: matrix.deploy_condition
         run: |
-          npx wrangler deploy --env ${{ matrix.env_name }} --name "${{ matrix.worker_name }}" --route "${{ matrix.route }}"
+          npx wrangler deploy --env ${{ matrix.env_name }} --name "${{ matrix.worker_name }}" --routes "${{ matrix.route }}"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
