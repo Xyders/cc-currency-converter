@@ -8,9 +8,9 @@ port = 8787
 
 [env.production]
 routes = [
-  "currency-converter-api.poplar.academy/*"
+  { pattern = "currency-converter-api.poplar.academy", custom_domain = true }
 ]
 
 [env.preview]
 # Routes are set dynamically via CLI flags per PR
-# Example: --route "pr-123.currency-converter-api.poplar.academy/*"
+# Example: --routes "pr-123.currency-converter-api.poplar.academy/*"
