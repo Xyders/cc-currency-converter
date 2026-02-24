@@ -5,3 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 [dev]
 port = 8787
+
+[env.production]
+# No route defined here; use --route flag
+
+[env.preview]
+# Template for preview environments
