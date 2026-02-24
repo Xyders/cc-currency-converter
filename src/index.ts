@@ -1,9 +1,8 @@
 import { currencyService } from './services/currency.js';
 import { ConversionRequest, ConversionResponse, ErrorResponse, CurrencyInfo } from './types/index.js';
-import type { Service } from '@cloudflare/workers-types';
 
 export interface Env {
-  akamaiService: {
+  akamaiService?: {
     handleWorkerRequest: (
       requestTs: number,
       cf: object, // Could use IncomingRequestCfProperties from @cloudflare/workers-types
@@ -16,7 +15,7 @@ export interface Env {
       status: number,
       responseBody: ReadableStream | null
     ) => Promise<void>;
-  } | Service;
+  };
   IGNORE_CACHED_RESPONSES?: string;
   MAX_BODY_SIZE_BYTES?: string;
 }
@@ -100,9 +99,9 @@ const shouldSendBody = (body: ReadableStream | null, headers: Headers, maxBodySi
   return true;
 };
 
-// Helper to call Akamai service binding, supporting both custom handleWorkerRequest and standard Service fetch
+// Helper to call Akamai service binding
 const callAkamaiService = async (
-  akamaiService: Env['akamaiService'],
+  akamaiService: Exclude<Env['akamaiService'], undefined>,
   requestTs: number,
   cf: object,
   method: string,
@@ -115,7 +114,7 @@ const callAkamaiService = async (
   responseBody: ReadableStream | null,
   ctx: ExecutionContext
 ): Promise<void> => {
-  if ('handleWorkerRequest' in akamaiService && typeof akamaiService.handleWorkerRequest === 'function') {
+  if (akamaiService.handleWorkerRequest) {
     return akamaiService.handleWorkerRequest(
       requestTs,
       cf,
@@ -128,36 +127,8 @@ const callAkamaiService = async (
       status,
       responseBody
     );
-  } else if ('fetch' in akamaiService && typeof akamaiService.fetch === 'function') {
-    // Adapt parameters to a Request and let the service handle it
-    // This is a fallback for testing environments where service binding is a standard Service
-    const request = new Request('https://akamai-service.internal/handleWorkerRequest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify({
-        requestTs,
-        cf,
-        method,
-        url,
-        headers,
-        requestBody: requestBody ? 'stream' : null,
-        responseTs,
-        responseHeaders,
-        status,
-        responseBody: responseBody ? 'stream' : null,
-      }),
-    });
-    const response = await akamaiService.fetch(request);
-    if (!response.ok) {
-      console.error('Akamai service fetch failed:', response.status, response.statusText);
-    }
-    // No need to wait for response body
-    return;
   } else {
-    console.error("Service binding 'akamaiService' missing or doesn't have expected methods");
+    console.error("Service binding 'akamaiService' missing handleWorkerRequest method");
     return;
   }
 };
@@ -346,7 +317,7 @@ export default {
           const sendResponseBody = shouldSendBody(responseClone.body, responseClone.headers, config.maxBodySizeBytes);
 
           const akamaiPromise = callAkamaiService(
-            env.akamaiService,
+            env.akamaiService!,
             requestTs,
             requestClone.cf || {},
             requestClone.method,
