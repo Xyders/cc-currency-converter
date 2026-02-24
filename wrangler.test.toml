@@ -3,10 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-01-14"
 compatibility_flags = ["nodejs_compat"]
 
-# Akamai service binding
-[[services]]
-binding = "akamaiService"
-service = "akamai-service"
+# Akamai service binding disabled for tests
+# [[services]]
+# binding = "akamaiService"
+# service = "akamai-service"
 
 # Environment variables with defaults
 [vars]
