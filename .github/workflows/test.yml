@@ -43,14 +43,14 @@ jobs:
         environment: [preview, production]
         include:
           - environment: preview
-            deploy_condition: github.event_name == 'pull_request'
+            deploy_condition: ${{ github.event_name == 'pull_request' }}
             env_name: preview
             worker_name: currency-converter-api-pr-${{ github.event.number }}
             route: pr-${{ github.event.number }}.currency-converter-api.poplar.academy/*
             base_url: https://pr-${{ github.event.number }}.currency-converter-api.poplar.academy
             use_custom_domain: false
           - environment: production
-            deploy_condition: github.event_name == 'push' && github.ref == 'refs/heads/main'
+            deploy_condition: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             env_name: production
             worker_name: currency-converter-api
             domain: currency-converter-api.poplar.academy
