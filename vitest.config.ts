@@ -8,7 +8,7 @@ export default defineWorkersProject({
         miniflare: {
           serviceBindings: {
             akamaiService: {
-              external: { address: "http://localhost:9999" },
+              network: { address: "http://localhost:9999" },
             },
           },
         },
