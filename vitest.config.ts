@@ -5,6 +5,13 @@ export default defineWorkersProject({
     poolOptions: {
       workers: {
         singleWorker: true,
+        miniflare: {
+          serviceBindings: {
+            akamaiService: {
+              external: { address: "http://localhost:9999" },
+            },
+          },
+        },
         wrangler: {
           configPath: "./wrangler.test.toml",
         },
