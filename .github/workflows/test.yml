@@ -95,14 +95,41 @@ jobs:
           # Debug DNS resolution
           echo "Testing DNS resolution for ${{ matrix.base_url }}"
           nslookup $(echo "${{ matrix.base_url }}" | sed 's|https://||') || true
-          # Test health endpoint (continue on error)
-          curl -s -o /dev/null -w "Health: %{http_code}\n" ${{ matrix.base_url }}/health || echo "Health check failed"
-          # Test currencies endpoint (continue on error)
-          curl -s -o /dev/null -w "Currencies: %{http_code}\n" ${{ matrix.base_url }}/currencies || echo "Currencies check failed"
-          # Test convert endpoint with sample values (USD to EUR) (continue on error)
-          curl -s -o /dev/null -w "Convert: %{http_code}\n" "${{ matrix.base_url }}/convert?from=USD&to=EUR&amount=100" || echo "Convert check failed"
-          # Test root endpoint (continue on error)
-          curl -s -o /dev/null -w "Root: %{http_code}\n" ${{ matrix.base_url }}/ || echo "Root check failed"
+
+          # Function to test endpoint with fallback from HTTPS to HTTP for preview
+          test_endpoint() {
+            local endpoint=$1
+            local url_https="${{ matrix.base_url }}$endpoint"
+            local url_http="http://$(echo "${{ matrix.base_url }}" | sed 's|https://||')$endpoint"
+
+            echo "Testing: $endpoint"
+            # Try HTTPS first
+            if curl -f -s -o /dev/null -w "HTTPS: %{http_code}\n" "$url_https"; then
+              return 0
+            else
+              local curl_exit=$?
+              echo "HTTPS failed with exit code $curl_exit"
+              # For preview environment, try HTTP as fallback
+              if [ "${{ matrix.environment }}" = "preview" ]; then
+                echo "Trying HTTP fallback for preview..."
+                if curl -f -s -o /dev/null -w "HTTP: %{http_code}\n" "$url_http"; then
+                  return 0
+                else
+                  echo "HTTP also failed"
+                  return 1
+                fi
+              else
+                return 1
+              fi
+            fi
+          }
+
+          # Test endpoints
+          test_endpoint "/health" || echo "Health check failed"
+          test_endpoint "/currencies" || echo "Currencies check failed"
+          test_endpoint "/convert?from=USD&to=EUR&amount=100" || echo "Convert check failed"
+          test_endpoint "/" || echo "Root check failed"
+
           echo "Smoke tests completed (some may have failed)"
 
       - name: Log production deployment URL
