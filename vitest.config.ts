@@ -22,6 +22,7 @@ export default defineWorkersProject({
         statements: 70,
       },
       reporter: ["text", "html", "json"],
+      exclude: ['prd/**'],
     },
   },
 });
