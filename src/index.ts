@@ -64,103 +64,40 @@ const DEFAULT_MAX_BODY_SIZE_BYTES = 1048576; // 1 MB
 
 // Get configuration from environment variables
 const getAkamaiConfig = (env: Env) => {
-  const ignoreCachedResponses = env.IGNORE_CACHED_RESPONSES
-    ? env.IGNORE_CACHED_RESPONSES.toLowerCase() === 'true'
-    : DEFAULT_IGNORE_CACHED_RESPONSES;
+    const ignoreCachedResponses = env.IGNORE_CACHED_RESPONSES
+        ? String(env.IGNORE_CACHED_RESPONSES).toLowerCase() === 'true'
+        : DEFAULT_IGNORE_CACHED_RESPONSES;
 
-  const maxBodySizeBytes = env.MAX_BODY_SIZE_BYTES
-    ? parseInt(env.MAX_BODY_SIZE_BYTES, 10)
-    : DEFAULT_MAX_BODY_SIZE_BYTES;
+    const maxBodySizeBytes = env.MAX_BODY_SIZE_BYTES
+        ? parseInt(env.MAX_BODY_SIZE_BYTES, 10)
+        : DEFAULT_MAX_BODY_SIZE_BYTES;
 
-  // Validate maxBodySizeBytes
-  const validMaxBodySize = Number.isInteger(maxBodySizeBytes) && maxBodySizeBytes > 0
-    ? maxBodySizeBytes
-    : DEFAULT_MAX_BODY_SIZE_BYTES;
+    // Validate maxBodySizeBytes
+    const validMaxBodySize = Number.isInteger(maxBodySizeBytes) && maxBodySizeBytes > 0
+        ? maxBodySizeBytes
+        : DEFAULT_MAX_BODY_SIZE_BYTES;
 
-  return {
-    ignoreCachedResponses,
-    maxBodySizeBytes: validMaxBodySize,
-  };
+    return {
+        ignoreCachedResponses,
+        maxBodySizeBytes: validMaxBodySize,
+    };
 };
 
 // Minimal check: should we gather this body based on content-length?
 // This is an optimization to avoid sending large bodies over service bindings to Akamai
 const shouldSendBody = (body: ReadableStream | null, headers: Headers, maxBodySizeBytes: number): boolean => {
-  if (body == null) {
-    return false;
-  }
-
-  // Fast-path: Check content-length if available (O(1) optimization)
-  const contentLength = headers.get('content-length');
-  if (contentLength != null && Number(contentLength) > maxBodySizeBytes) {
-    console.debug(`Content-Length ${contentLength} exceeds max limit, not sending body to Akamai`);
-    return false;
-  }
-
-  return true;
-};
-
-// Helper to call Akamai service binding
-const callAkamaiService = async (
-  akamaiService: Exclude<Env['akamaiService'], undefined>,
-  requestTs: number,
-  cf: object,
-  method: string,
-  url: string,
-  headers: Record<string, string>,
-  requestBody: ReadableStream | null,
-  responseTs: number,
-  responseHeaders: Record<string, string>,
-  status: number,
-  responseBody: ReadableStream | null,
-  ctx: ExecutionContext
-): Promise<void> => {
-  if (akamaiService.handleWorkerRequest && typeof akamaiService.handleWorkerRequest === 'function') {
-    try {
-      return await akamaiService.handleWorkerRequest(
-        requestTs,
-        cf,
-        method,
-        url,
-        headers,
-        requestBody,
-        responseTs,
-        responseHeaders,
-        status,
-        responseBody
-      );
-    } catch (error) {
-      // If handleWorkerRequest fails with RPC error, log and ignore
-      console.error('Akamai service handleWorkerRequest failed:', error);
-      return;
+    if (body == null) {
+        return false;
     }
-  } else {
-    // fallback to standard Service fetch
-    const request = new Request('https://akamai-service.internal/handleWorkerRequest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify({
-        requestTs,
-        cf,
-        method,
-        url,
-        headers,
-        requestBody: requestBody ? 'stream' : null,
-        responseTs,
-        responseHeaders,
-        status,
-        responseBody: responseBody ? 'stream' : null,
-      }),
-    });
-    const response = await akamaiService.fetch(request);
-    if (!response.ok) {
-      console.error('Akamai service fetch failed:', response.status, response.statusText);
+
+    // Fast-path: Check content-length if available (O(1) optimization)
+    const contentLength = headers.get('content-length');
+    if (contentLength != null && Number(contentLength) > maxBodySizeBytes) {
+        console.debug(`Content-Length ${contentLength} exceeds max limit, not sending body to Akamai`);
+        return false;
     }
-    return;
-  }
+
+    return true;
 };
 // ============ AKAMAI CODE ENDS ============
 
@@ -193,19 +130,20 @@ export default {
     // ============ AKAMAI CODE STARTS ============
     // Handle WebSocket connections directly (skip all Akamai processing)
     if (request.headers.get('upgrade') === 'websocket') {
-      console.debug("WebSocket connection. Skipping Akamai integration.");
-      return globalThis.fetch(request);
+        console.debug("WebSocket connection. Skipping Akamai integration.");
+        return fetch(request);
     }
 
-    let requestTs: number = 0;
-    let requestClone: Request | null;
+    let requestTs = 0;
+    let requestClone = null;
 
     try {
-      requestTs = Date.now();
-      requestClone = request.clone();
+        requestTs = Date.now();
+        requestClone = request.clone();
     } catch (error) {
-      console.error('Failed to initialize Akamai (request):', error);
-      requestClone = null;
+        console.error('Failed to initialize Akamai (request):', error);
+        // Continue without Akamai
+        requestClone = null;
     }
     // ============ AKAMAI CODE ENDS ==============
 
@@ -314,63 +252,62 @@ export default {
     }
 
     // ============ AKAMAI CODE STARTS ============
-    let responseTs: number = 0;
-    let responseClone: Response | null;
+    let responseTs = 0;
+    let responseClone = null;
 
     try {
-      responseTs = Date.now();
-      responseClone = response.clone();
+        responseTs = Date.now();
+        responseClone = response.clone();
     } catch (error) {
-      console.error('Failed to clone response for Akamai:', error);
-      responseClone = null;
+        console.error('Failed to clone response for Akamai:', error);
+        // Continue without Akamai
+        responseClone = null;
     }
 
     // Send to Akamai if we have both clones
     if (requestClone && responseClone) {
-      try {
-        const config = getAkamaiConfig(env);
+        try {
+            const config = getAkamaiConfig(env);
 
-        // Pre-flight check: skip cached responses if configured
-        let shouldSendToAkamai = true;
+            // Pre-flight check: skip cached responses if configured
+            let shouldSendToAkamai = true;
 
-        if (config.ignoreCachedResponses) {
-          const cacheStatus = (response.headers.get('cf-cache-status') || '').toLowerCase();
-          if (cacheStatus === 'hit') {
-            console.debug('Cache HIT - skipping Akamai');
-            shouldSendToAkamai = false;
-          }
+            if (config.ignoreCachedResponses) {
+                const cacheStatus = (response.headers.get('cf-cache-status') || '').toLowerCase();
+                if (cacheStatus === 'hit') {
+                    console.debug('Cache HIT - skipping Akamai');
+                    shouldSendToAkamai = false;
+                }
+            }
+
+            if (shouldSendToAkamai && env.akamaiService?.handleWorkerRequest) {
+                // Pre-flight check: should we send request/response bodies?
+                const sendRequestBody = shouldSendBody(requestClone.body, requestClone.headers, config.maxBodySizeBytes);
+                const sendResponseBody = shouldSendBody(responseClone.body, responseClone.headers, config.maxBodySizeBytes);
+
+                const akamaiPromise = env.akamaiService.handleWorkerRequest(
+                    requestTs,
+                    requestClone.cf || {},
+                    requestClone.method,
+                    requestClone.url,
+                    Object.fromEntries(requestClone.headers),
+                    sendRequestBody ? requestClone.body : null,
+                    responseTs,
+                    Object.fromEntries(responseClone.headers),
+                    responseClone.status,
+                    sendResponseBody ? responseClone.body : null,
+                ).catch((error) => {
+                    console.error('Akamai service binding call failed:', error);
+                });
+
+                ctx.waitUntil(akamaiPromise);
+            } else if (!env.akamaiService?.handleWorkerRequest) {
+                console.error("Service binding 'akamaiService' missing or doesn't have 'handleWorkerRequest' method");
+            }
+        } catch (error) {
+            console.error('Error in Akamai processing:', error);
+            // Continue with original worker logic
         }
-
-        if (shouldSendToAkamai && env.akamaiService) {
-          // Pre-flight check: should we send request/response bodies?
-          const sendRequestBody = shouldSendBody(requestClone.body, requestClone.headers, config.maxBodySizeBytes);
-          const sendResponseBody = shouldSendBody(responseClone.body, responseClone.headers, config.maxBodySizeBytes);
-
-          const akamaiPromise = callAkamaiService(
-            env.akamaiService!,
-            requestTs,
-            requestClone.cf || {},
-            requestClone.method,
-            requestClone.url,
-            Object.fromEntries(requestClone.headers),
-            sendRequestBody ? requestClone.body : null,
-            responseTs,
-            Object.fromEntries(responseClone.headers),
-            responseClone.status,
-            sendResponseBody ? responseClone.body : null,
-            ctx
-          ).catch((error) => {
-            console.error('Akamai service binding call failed:', error);
-          });
-
-          ctx.waitUntil(akamaiPromise);
-        } else if (!env.akamaiService) {
-          console.error("Service binding 'akamaiService' missing");
-        }
-      } catch (error) {
-        console.error('Error in Akamai processing:', error);
-        // Continue with original worker logic
-      }
     }
     // ============ AKAMAI CODE ENDS ==============
 
