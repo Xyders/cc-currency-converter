@@ -104,12 +104,12 @@ jobs:
           # Ensure cleanup on exit
           trap 'rm -f "$response_file"' EXIT
 
-          # Build API URL based on environment
+          # Build API URL based on environment - use services settings endpoint for configuration metadata
           if [ "${{ matrix.env_name }}" = "production" ]; then
-            api_url="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}"
+            api_url="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/services/${{ matrix.worker_name }}/environments/production/settings"
           else
-            # For preview environment, use the environments endpoint
-            api_url="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}/environments/${{ matrix.env_name }}"
+            # For preview environment, use the environments settings endpoint
+            api_url="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/services/${{ matrix.worker_name }}/environments/${{ matrix.env_name }}/settings"
           fi
 
           echo "Using API URL: $api_url"
