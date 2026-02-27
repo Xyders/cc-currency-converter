@@ -90,21 +90,64 @@ jobs:
         if: matrix.deploy_condition
         run: |
           echo "Verifying service binding for worker: ${{ matrix.worker_name }}"
-          # Fetch worker script details
-          response=$(curl -s -X GET \
+
+          # Use a temporary file to store the response
+          response_file=$(mktemp)
+
+          # Fetch worker script details with explicit error handling
+          http_code=$(curl -s -w "%{http_code}" -o "$response_file" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}" \
-            | jq .)
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}")
 
-          echo "Worker details: $response"
-          # Check if bindings array contains akamaiService
-          if echo "$response" | jq -e '.result.bindings[] | select(.type=="service" and .name=="akamaiService")' > /dev/null; then
-            echo "✓ Service binding 'akamaiService' found in worker configuration"
-          else
-            echo "✗ Service binding 'akamaiService' not found in worker configuration"
+          # Check if curl succeeded and we got a 2xx response
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to fetch worker details from Cloudflare API"
+            rm -f "$response_file"
             exit 1
           fi
+
+          if [ "${http_code:0:1}" != "2" ]; then
+            echo "❌ Cloudflare API returned HTTP $http_code"
+            echo "Response content:"
+            cat "$response_file"
+            rm -f "$response_file"
+            exit 1
+          fi
+
+          # Validate JSON response
+          if ! jq '.' "$response_file" > /dev/null 2>&1; then
+            echo "❌ Cloudflare API returned invalid JSON response"
+            echo "Raw response:"
+            cat "$response_file"
+            rm -f "$response_file"
+            exit 1
+          fi
+
+          # Check for service binding with explicit exit code handling
+          jq_exit=0
+          jq -e '.result.bindings[]? | select(.type=="service" and .name=="akamaiService")' "$response_file" > /dev/null || jq_exit=$?
+
+          case $jq_exit in
+            0)
+              echo "✅ Service binding 'akamaiService' found in worker configuration"
+              rm -f "$response_file"
+              ;;
+            1)
+              echo "❌ Service binding 'akamaiService' not found in worker configuration"
+              echo "Worker configuration details:"
+              jq '.' "$response_file"
+              rm -f "$response_file"
+              exit 1
+              ;;
+            *)
+              echo "❌ Error parsing JSON response (jq exit code: $jq_exit)"
+              echo "Response content:"
+              cat "$response_file"
+              rm -f "$response_file"
+              exit 1
+              ;;
+          esac
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
