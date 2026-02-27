@@ -198,37 +198,40 @@ jobs:
         if: matrix.deploy_condition
         run: |
           echo "Testing API endpoints at ${{ matrix.base_url }}"
-          # Wait a few seconds for deployment to propagate
+          # Wait for deployment propagation
           sleep 10
           # Debug DNS resolution
           echo "Testing DNS resolution for ${{ matrix.base_url }}"
           nslookup $(echo "${{ matrix.base_url }}" | sed 's|https://||') || true
 
-          # Function to test endpoint with fallback from HTTPS to HTTP for preview
+          # Function to test endpoint using environment-appropriate protocol
           test_endpoint() {
             local endpoint=$1
-            local url_https="${{ matrix.base_url }}$endpoint"
-            local url_http="http://$(echo "${{ matrix.base_url }}" | sed 's|https://||')$endpoint"
+            local protocol="https"
+            local domain=""
 
-            echo "Testing: $endpoint"
-            # Try HTTPS first
-            if curl -f -s -o /dev/null -w "HTTPS: %{http_code}\n" "$url_https"; then
+            # Determine protocol based on environment
+            if [ "${{ matrix.environment }}" = "preview" ]; then
+              protocol="http"
+              echo "Using HTTP for preview environment (no SSL available)"
+            else
+              protocol="https"
+              echo "Using HTTPS for production environment"
+            fi
+
+            # Extract domain from base_url (remove https:// prefix)
+            domain=$(echo "${{ matrix.base_url }}" | sed 's|https://||')
+            local url="${protocol}://${domain}${endpoint}"
+
+            echo "Testing: ${endpoint} at ${url}"
+
+            if curl -f -s -o /dev/null -w "%{http_code}\n" "${url}"; then
+              echo "✅ Success: ${endpoint}"
               return 0
             else
               local curl_exit=$?
-              echo "HTTPS failed with exit code $curl_exit"
-              # For preview environment, try HTTP as fallback
-              if [ "${{ matrix.environment }}" = "preview" ]; then
-                echo "Trying HTTP fallback for preview..."
-                if curl -f -s -o /dev/null -w "HTTP: %{http_code}\n" "$url_http"; then
-                  return 0
-                else
-                  echo "HTTP also failed"
-                  return 1
-                fi
-              else
-                return 1
-              fi
+              echo "❌ Failed: ${endpoint} (curl exit: ${curl_exit})"
+              return 1
             fi
           }
 
@@ -239,7 +242,6 @@ jobs:
           test_endpoint "/" || echo "Root check failed"
 
           echo "Smoke tests completed (some may have failed)"
-
       - name: Log production deployment URL
         if: matrix.environment == 'production' && matrix.deploy_condition
         run: |
