@@ -89,37 +89,78 @@ jobs:
       - name: Verify service binding via Cloudflare API
         if: matrix.deploy_condition
         run: |
-          echo "Verifying service binding for worker: ${{ matrix.worker_name }}"
+          echo "Verifying service binding for worker: ${{ matrix.worker_name }} in environment: ${{ matrix.env_name }}"
+
+          # Wait for deployment to propagate
+          echo "Waiting 15 seconds for deployment to stabilize..."
+          sleep 15
 
           # Use a temporary file to store the response
           response_file=$(mktemp)
+
+          # Build API URL based on environment
+          if [ "${{ matrix.env_name }}" = "production" ]; then
+            api_url="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}"
+          else
+            # For preview environment, use the environments endpoint
+            api_url="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}/environments/${{ matrix.env_name }}"
+          fi
+
+          echo "Using API URL: $api_url"
 
           # Fetch worker script details with explicit error handling
           http_code=$(curl -s -w "%{http_code}" -o "$response_file" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/${{ matrix.worker_name }}")
+            "$api_url")
 
-          # Check if curl succeeded and we got a 2xx response
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to fetch worker details from Cloudflare API"
+          # Check if curl succeeded
+          curl_exit=$?
+          if [ $curl_exit -ne 0 ]; then
+            echo "❌ Failed to fetch worker details from Cloudflare API (curl exit: $curl_exit)"
+            echo "API URL: $api_url"
             rm -f "$response_file"
             exit 1
           fi
 
+          # Check HTTP status
           if [ "${http_code:0:1}" != "2" ]; then
             echo "❌ Cloudflare API returned HTTP $http_code"
-            echo "Response content:"
-            cat "$response_file"
+            echo "API URL: $api_url"
+            echo "Response content (first 500 chars):"
+            head -c 500 "$response_file"
+            echo ""
+
+            # Check if response looks like HTML
+            if grep -q -i "<!DOCTYPE\|<html\|<head\|<body" "$response_file" 2>/dev/null; then
+              echo "Response appears to be HTML (error page)"
+            fi
+
+            rm -f "$response_file"
+            exit 1
+          fi
+
+          # Check if response is empty
+          if [ ! -s "$response_file" ]; then
+            echo "❌ Cloudflare API returned empty response"
+            echo "API URL: $api_url"
             rm -f "$response_file"
             exit 1
           fi
 
           # Validate JSON response
-          if ! jq '.' "$response_file" > /dev/null 2>&1; then
+          if ! jq -e '.' "$response_file" > /dev/null 2>&1; then
             echo "❌ Cloudflare API returned invalid JSON response"
-            echo "Raw response:"
-            cat "$response_file"
+            echo "API URL: $api_url"
+            echo "Raw response (first 1000 chars):"
+            head -c 1000 "$response_file"
+            echo ""
+
+            # Check if response is HTML/error page
+            if head -c 500 "$response_file" | grep -q -i "<!DOCTYPE\|<html\|<head\|<body"; then
+              echo "Response appears to be HTML error page"
+            fi
+
             rm -f "$response_file"
             exit 1
           fi
@@ -135,6 +176,7 @@ jobs:
               ;;
             1)
               echo "❌ Service binding 'akamaiService' not found in worker configuration"
+              echo "API URL: $api_url"
               echo "Worker configuration details:"
               jq '.' "$response_file"
               rm -f "$response_file"
@@ -142,6 +184,7 @@ jobs:
               ;;
             *)
               echo "❌ Error parsing JSON response (jq exit code: $jq_exit)"
+              echo "API URL: $api_url"
               echo "Response content:"
               cat "$response_file"
               rm -f "$response_file"
