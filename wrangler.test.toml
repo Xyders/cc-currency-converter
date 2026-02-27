@@ -3,10 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2026-01-14"
 compatibility_flags = ["nodejs_compat"]
 
-# Akamai service binding
-[[services]]
-binding = "akamaiService"
-service = "akamai-service"
 
 # Environment variables with defaults
 [vars]
@@ -24,8 +20,3 @@ routes = [
 [env.preview]
 # Routes are set dynamically via CLI flags per PR
 # Example: --routes "pr-123.currency-converter-api.poplar.academy/*"
-
-# Explicit service binding for preview environment
-[[services]]
-binding = "akamaiService"
-service = "akamai-service"

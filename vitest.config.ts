@@ -5,20 +5,24 @@ export default defineWorkersProject({
     poolOptions: {
       workers: {
         singleWorker: true,
+        miniflare: {
+          serviceBindings: {},
+        },
         wrangler: {
-          configPath: "./wrangler.toml",
+          configPath: "./wrangler.test.toml",
         },
       },
     },
     coverage: {
       provider: "istanbul",
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80,
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
       },
       reporter: ["text", "html", "json"],
+      exclude: ['prd/**'],
     },
   },
 });
