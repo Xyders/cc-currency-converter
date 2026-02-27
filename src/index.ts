@@ -63,7 +63,7 @@ const DEFAULT_IGNORE_CACHED_RESPONSES = false;
 const DEFAULT_MAX_BODY_SIZE_BYTES = 1048576; // 1 MB
 
 // Get configuration from environment variables
-const getAkamaiConfig = (env: Env) => {
+export const getAkamaiConfig = (env: Env) => {
     const ignoreCachedResponses = env.IGNORE_CACHED_RESPONSES
         ? String(env.IGNORE_CACHED_RESPONSES).toLowerCase() === 'true'
         : DEFAULT_IGNORE_CACHED_RESPONSES;
@@ -85,7 +85,7 @@ const getAkamaiConfig = (env: Env) => {
 
 // Minimal check: should we gather this body based on content-length?
 // This is an optimization to avoid sending large bodies over service bindings to Akamai
-const shouldSendBody = (body: ReadableStream | null, headers: Headers, maxBodySizeBytes: number): boolean => {
+export const shouldSendBody = (body: ReadableStream | null, headers: Headers, maxBodySizeBytes: number): boolean => {
     if (body == null) {
         return false;
     }

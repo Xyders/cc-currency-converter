@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { SELF } from 'cloudflare:test';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { SELF, env } from 'cloudflare:test';
 
 // Hoisted mock to replace production CSV with test data
 const mockRates = vi.hoisted(() => ({
@@ -13,6 +13,40 @@ const mockRates = vi.hoisted(() => ({
 vi.mock('./data/rates.js', () => mockRates);
 
 describe('Currency Converter API', () => {
+  // Mock Akamai service binding
+  let originalAkamaiService: any;
+
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  beforeEach(() => {
+    console.log('[Test] Mocking akamaiService, current:', (env as any).akamaiService);
+    originalAkamaiService = (env as any).akamaiService;
+    (env as any).akamaiService = {
+      async handleWorkerRequest(
+        requestTs: number,
+        cf: object,
+        method: string,
+        url: string,
+        headers: Record<string, string>,
+        requestBody: ReadableStream | null,
+        responseTs: number,
+        responseHeaders: Record<string, string>,
+        status: number,
+        responseBody: ReadableStream | null
+      ) {
+        console.log('[Mock Akamai] handleWorkerRequest called', { method, url, status });
+        return Promise.resolve();
+      },
+    };
+    console.log('[Test] Mock assigned');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    (env as any).akamaiService = originalAkamaiService;
+  });
   describe('root endpoint', () => {
     it('should return hello world', async () => {
       const response = await SELF.fetch('http://localhost/');
