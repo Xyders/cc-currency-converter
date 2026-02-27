@@ -4,14 +4,14 @@ compatibility_date = "2026-01-14"
 compatibility_flags = ["nodejs_compat"]
 
 # Akamai service binding
-[[services]]
-binding = "akamaiService"
-service = "akamai-service"
+#[[services]]
+#binding = "akamaiService"
+#service = "akamai-service"
 
 # Environment variables with defaults
-[vars]
-IGNORE_CACHED_RESPONSES = "false"
-MAX_BODY_SIZE_BYTES = "1048576"
+#[vars]
+#IGNORE_CACHED_RESPONSES = "false"
+#MAX_BODY_SIZE_BYTES = "1048576"
 
 [dev]
 port = 8787
@@ -21,11 +21,23 @@ routes = [
   { pattern = "currency-converter-api.poplar.academy", custom_domain = true }
 ]
 
+[[env.production.services]]
+binding = "akamaiService"
+service = "akamai-service"
+
+[env.production.vars]
+IGNORE_CACHED_RESPONSES = "false"
+MAX_BODY_SIZE_BYTES = "1048576"
+
 [env.preview]
 # Routes are set dynamically via CLI flags per PR
 # Example: --routes "pr-123.currency-converter-api.poplar.academy/*"
 
 # Explicit service binding for preview environment
-[[services]]
+[[env.preview.services]]
 binding = "akamaiService"
 service = "akamai-service"
+
+[env.preview.vars]
+IGNORE_CACHED_RESPONSES = "false"
+MAX_BODY_SIZE_BYTES = "1048576"

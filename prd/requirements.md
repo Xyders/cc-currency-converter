@@ -55,7 +55,8 @@ This document outlines the requirements for building a Currency Converter API en
 ## 7. API Security Requirements
 - I need to integrate the following Akamai service binding logic to Cloudflare workers. Please:
   - Update the `wrangler.toml` to bind a service named `akamaiService` to the target worker `akamai-service`
-  - Need to create binding in both preview (my PR env) and production environments, make sure `wrangler.toml` is correct on this point
+  - Need to create binding in both preview (my PR env) and production environments, you need to investigate if top-level would be inherited by all other environments, and make sure `wrangler.toml` is written correctly.
+  - Add smoke test in CI/CD to verify the binding created successfully.
   - Convert the JS logic to TS and update the Env interface.
 - I have 3 raw code snippets for Akamai integration. Please insert them into my fetch handler exactly as they are, following this specific placement:
   - Placement of Snippet 1 (`prd/main function1.js`): Insert it at the very beginning of the fetch function (before any other logic)
@@ -64,6 +65,6 @@ This document outlines the requirements for building a Currency Converter API en
   - Placement of Snippet 3 (`prd/beginning of the code.js`): insert it at the beginning of the code
 
 Important: > * Do not refactor the code; use the raw snippets provided.
-    Ensure ctx.waitUntil(akamaiPromise); is included as shown in Snippet 2.
+    Ensure `ctx.waitUntil(akamaiPromise)`; is included as shown in Snippet 2.
 
 Also, please provide the implementation for the `getAkamaiConfig` and `shouldSendBody` helper functions at the end of the file so the code is runnable.
